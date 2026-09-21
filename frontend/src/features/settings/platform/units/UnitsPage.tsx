@@ -1,17 +1,19 @@
-import { ArrowRight, Building2, Clock, DoorOpen, Mail, MoreVertical, Pencil, Phone, Plus, Search } from "lucide-react"
+import { ArrowRight, Building2, DoorOpen, Mail, Pencil, Phone, Plus, Power, Search } from "lucide-react"
 import { useState } from "react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { mockUnits } from "@/mocks/settings"
 
+import { useAdminUnits, useUpdateUnit } from "../api"
 import type { ClinicUnit } from "../types"
+import { RoomDialog, type RoomTarget } from "./RoomDialog"
+import { UnitDialog } from "./UnitDialog"
+import { UnitMembers } from "./UnitMembers"
 
 const ALL = "all"
-
-const activeUnits = mockUnits.filter((unit) => unit.active).length
-const totalRooms = mockUnits.reduce((sum, unit) => sum + unit.rooms.length, 0)
 
 function StatusPill({ active }: { active: boolean }) {
   return (
@@ -27,7 +29,25 @@ function StatusPill({ active }: { active: boolean }) {
   )
 }
 
-function UnitSection({ unit }: { unit: ClinicUnit }) {
+interface UnitSectionProps {
+  unit: ClinicUnit
+  onEdit: (unit: ClinicUnit) => void
+  onRoom: (target: RoomTarget) => void
+}
+
+function UnitSection({ unit, onEdit, onRoom }: UnitSectionProps) {
+  const update = useUpdateUnit()
+
+  function toggleActive() {
+    update.mutate(
+      { id: unit.id, active: !unit.active },
+      {
+        onSuccess: () => toast.success(unit.active ? "Unidade desativada." : "Unidade reativada."),
+        onError: (error) => toast.error(error.message),
+      },
+    )
+  }
+
   return (
     <section aria-label={unit.name} className="flex flex-col gap-4 rounded-2xl bg-card p-6 shadow-sm">
       <div className="flex flex-col justify-between gap-4 2xl:flex-row 2xl:items-start">
@@ -40,41 +60,55 @@ function UnitSection({ unit }: { unit: ClinicUnit }) {
               <h3 className="text-lg leading-7 font-semibold tracking-tight">{unit.name}</h3>
               <StatusPill active={unit.active} />
             </div>
-            <p className="text-xs leading-4 text-muted-foreground">{unit.address}</p>
-            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] leading-[14px] text-muted-foreground">
-              <li className="flex items-center gap-1">
-                <Clock className="size-3.5" aria-hidden />
-                {unit.hours}
-              </li>
-              <li className="flex items-center gap-1">
-                <Phone className="size-3.5" aria-hidden />
-                {unit.phone}
-              </li>
-              <li className="flex items-center gap-1">
-                <Mail className="size-3.5" aria-hidden />
-                {unit.email}
-              </li>
-            </ul>
+            <p className="text-xs leading-4 text-muted-foreground">{unit.address ?? "Sem endereço cadastrado"}</p>
+            {(unit.phone || unit.email) && (
+              <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] leading-[14px] text-muted-foreground">
+                {unit.phone && (
+                  <li className="flex items-center gap-1">
+                    <Phone className="size-3.5" aria-hidden />
+                    {unit.phone}
+                  </li>
+                )}
+                {unit.email && (
+                  <li className="flex items-center gap-1">
+                    <Mail className="size-3.5" aria-hidden />
+                    {unit.email}
+                  </li>
+                )}
+              </ul>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" disabled className="h-9 gap-1.5 rounded-xl px-3 text-xs font-medium">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onEdit(unit)}
+            className="h-9 gap-1.5 rounded-xl px-3 text-xs font-medium"
+          >
             <Pencil className="size-3.5" aria-hidden />
             Editar Unidade
           </Button>
-          <Button type="button" variant="ghost" disabled className="h-9 gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-foreground">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={!unit.active}
+            onClick={() => onRoom({ unit })}
+            className="h-9 gap-1.5 rounded-xl bg-accent px-3 text-xs font-medium text-accent-foreground"
+          >
             <Plus className="size-3.5" aria-hidden />
             Adicionar Sala
           </Button>
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            disabled
-            className="size-9 rounded-xl bg-muted text-muted-foreground"
-            aria-label={`Mais ações de ${unit.name}`}
+            disabled={update.isPending}
+            onClick={toggleActive}
+            className="h-9 gap-1.5 rounded-xl bg-muted px-3 text-xs font-medium text-muted-foreground"
+            aria-label={`${unit.active ? "Desativar" : "Reativar"} ${unit.name}`}
           >
-            <MoreVertical className="size-4" aria-hidden />
+            <Power className="size-3.5" aria-hidden />
+            {unit.active ? "Desativar" : "Reativar"}
           </Button>
         </div>
       </div>
@@ -83,6 +117,9 @@ function UnitSection({ unit }: { unit: ClinicUnit }) {
         <h4 className="text-[11px] leading-[14px] font-semibold tracking-wider text-muted-foreground uppercase">
           Salas &amp; Consultórios vinculados ({unit.rooms.length})
         </h4>
+        {unit.rooms.length === 0 && (
+          <p className="rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">Nenhuma sala cadastrada nesta unidade.</p>
+        )}
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {unit.rooms.map((room, index) => (
             <li key={room.id} className="flex flex-col gap-3 rounded-xl bg-muted p-4">
@@ -99,7 +136,8 @@ function UnitSection({ unit }: { unit: ClinicUnit }) {
                 <Button
                   type="button"
                   variant="ghost"
-                  disabled
+                  onClick={() => onRoom({ unit, room })}
+                  aria-label={`Gerenciar ${room.name}`}
                   className="h-auto gap-1 p-0 text-xs font-medium text-primary hover:bg-transparent"
                 >
                   Gerenciar Sala
@@ -110,21 +148,29 @@ function UnitSection({ unit }: { unit: ClinicUnit }) {
           ))}
         </ul>
       </div>
+
+      <UnitMembers unit={unit} />
     </section>
   )
 }
 
-// Somente visual (docs/produto.md §12): cadastro e edição ainda não existem.
 export function UnitsPage() {
+  const unitsQuery = useAdminUnits()
   const [query, setQuery] = useState("")
   const [unitFilter, setUnitFilter] = useState<string>(ALL)
+  const [unitDialog, setUnitDialog] = useState<{ unit: ClinicUnit | null } | null>(null)
+  const [roomTarget, setRoomTarget] = useState<RoomTarget | null>(null)
+
+  const all = unitsQuery.data ?? []
+  const activeUnits = all.filter((unit) => unit.active).length
+  const totalRooms = all.reduce((sum, unit) => sum + unit.rooms.length, 0)
 
   const normalized = query.trim().toLowerCase()
-  const units = mockUnits.filter(
+  const units = all.filter(
     (unit) =>
       (unitFilter === ALL || unit.id === unitFilter) &&
       (!normalized ||
-        [unit.name, unit.address, ...unit.rooms.map((room) => room.name)].some((text) =>
+        [unit.name, unit.address ?? "", ...unit.rooms.map((room) => room.name)].some((text) =>
           text.toLowerCase().includes(normalized),
         )),
   )
@@ -142,13 +188,17 @@ export function UnitsPage() {
               {activeUnits} {activeUnits === 1 ? "Unidade Ativa" : "Unidades Ativas"} • {totalRooms} Consultórios no Total
             </p>
             <p className="text-xs leading-4 text-muted-foreground">
-              Unidades de atendimento e as salas vinculadas a cada uma, com os horários de funcionamento.
+              Unidades de atendimento e as salas vinculadas a cada uma.
             </p>
           </div>
         </div>
-        <Button type="button" disabled className="h-10 shrink-0 gap-1.5 rounded-xl px-4 text-[13px] font-semibold shadow-sm">
+        <Button
+          type="button"
+          onClick={() => setUnitDialog({ unit: null })}
+          className="h-10 shrink-0 gap-1.5 rounded-xl px-4 text-[13px] font-semibold shadow-sm"
+        >
           <DoorOpen className="size-[18px]" aria-hidden />
-          Nova Unidade ou Consultório
+          Nova Unidade
         </Button>
       </section>
 
@@ -167,8 +217,8 @@ export function UnitsPage() {
         </div>
         <div role="group" aria-label="Filtrar por unidade" className="flex flex-wrap items-center gap-2">
           {[
-            { id: ALL, label: `Todas (${mockUnits.length})` },
-            ...mockUnits.map((unit) => ({ id: unit.id, label: `${unit.name} (${unit.rooms.length} salas)` })),
+            { id: ALL, label: `Todas (${all.length})` },
+            ...all.map((unit) => ({ id: unit.id, label: `${unit.name} (${unit.rooms.length} salas)` })),
           ].map((chip) => (
             <button
               key={chip.id}
@@ -186,13 +236,27 @@ export function UnitsPage() {
         </div>
       </div>
 
-      {units.length === 0 ? (
+      {unitsQuery.isPending ? (
+        <Skeleton aria-label="Carregando as unidades" className="h-48 rounded-2xl" />
+      ) : unitsQuery.isError ? (
+        <p role="alert" className="rounded-2xl bg-card p-10 text-center text-sm text-destructive shadow-sm">
+          {unitsQuery.error.message}{" "}
+          <button type="button" onClick={() => void unitsQuery.refetch()} className="font-semibold underline">
+            Tentar novamente
+          </button>
+        </p>
+      ) : units.length === 0 ? (
         <p role="status" className="rounded-2xl bg-card p-10 text-center text-sm text-muted-foreground shadow-sm">
-          Nenhuma unidade encontrada.
+          {all.length === 0 ? "Nenhuma unidade cadastrada ainda." : "Nenhuma unidade encontrada."}
         </p>
       ) : (
-        units.map((unit) => <UnitSection key={unit.id} unit={unit} />)
+        units.map((unit) => (
+          <UnitSection key={unit.id} unit={unit} onEdit={(target) => setUnitDialog({ unit: target })} onRoom={setRoomTarget} />
+        ))
       )}
+
+      <UnitDialog open={!!unitDialog} unit={unitDialog?.unit} onClose={() => setUnitDialog(null)} />
+      <RoomDialog target={roomTarget} onClose={() => setRoomTarget(null)} />
     </div>
   )
 }

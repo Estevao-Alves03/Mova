@@ -171,7 +171,7 @@ function ScheduleForm({ config, units }: { config: ScheduleConfig; units: Schedu
         <legend className="text-sm font-semibold">Dias e horários de atendimento</legend>
         {noUnit ? (
           <p role="alert" className="text-sm text-destructive">
-            Nenhuma unidade cadastrada. Peça ao administrador para cadastrar uma unidade.
+            Nenhuma unidade vinculada à sua conta. Peça ao administrador para vincular você a uma unidade (Configurações → Unidades).
           </p>
         ) : (
           <WeekdayRows days={draft.days} errors={fields} units={units} onChange={patchDay} />

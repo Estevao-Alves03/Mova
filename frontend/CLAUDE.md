@@ -49,7 +49,10 @@
 - supabase-js somente para autenticação. Nenhuma consulta direta a tabelas.
 - TanStack Query para estado de servidor; react-hook-form + zod para formulários (anamnese em etapas com rascunho).
 - `mocks/` só para telas cujo backend ainda não existe. Remover o mock ao integrar.
-- Agenda: profissionais, expediente, almoço, durações por tipo e bloqueios vêm da API (`features/schedule/api.ts`). Só as **consultas** ainda são fictícias (`mocks/schedule.ts`, Fase B) e são geradas apenas dentro da disponibilidade real. O front nunca decide disponibilidade: a API valida; a recepção recebe bloqueios só como "Indisponível" (sem motivo).
+- Agenda: profissionais, expediente, almoço, durações por tipo e bloqueios vêm da API (`features/schedule/api.ts`). As consultas também vêm da API (`GET /schedule/appointments`). O front nunca decide disponibilidade: a API valida; a recepção recebe bloqueios só como "Indisponível" (sem motivo).
+- Pacientes (`features/patients`): a lista lê `GET /patients` (a API filtra por papel e recorta os campos). Dados clínicos nunca são renderizados para a recepção. Filtros, busca, ordem e página ficam na URL.
+- Busca principal (`layouts/admin/PatientSearch.tsx`): combobox no header (nome, telefone, e-mail) sobre `GET /patients/search`, com debounce; ⌘K/Ctrl+K foca. Enquanto não existir a tela do paciente, escolher um resultado abre a lista filtrada por ele.
+- Sino (`features/notifications`): consulta `GET /notifications` a cada 30 s (aba visível) e ao voltar para a aba; alertas sonoros/na tela seguem `alertRules.ts` (preferências, horário de silêncio, silêncio clínico). Toasts ficam no canto inferior para não cobrir o sino e a busca do header.
 - Só há três tipos de atendimento (1ª consulta, retorno, avaliação antropométrica). Teleconsulta não é tipo.
 
 ## Variáveis de ambiente

@@ -1,4 +1,4 @@
-import { useQueries } from "@tanstack/react-query"
+import { useQueries, useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
 
@@ -14,15 +14,41 @@ import {
   startOfWeek,
   toISODate,
 } from "@/lib/date"
-import { getMockAppointments, mockRooms, type MockSubject } from "@/mocks/schedule"
 
-import { scheduleConfigQuery, unavailablePeriodsQuery, useScheduleProfessionals } from "./api"
+import {
+  agendaAppointmentsQuery,
+  scheduleConfigQuery,
+  unavailablePeriodsQuery,
+  useScheduleProfessionals,
+  useScheduleUnits,
+} from "./api"
 import { buildStructureEvents, dayHours, gridBounds, unionHours, type ScheduleSource } from "./agendaEvents"
 import { CATEGORIES } from "./categories"
-import type { AgendaView, AppointmentStatus, EventKind, Professional, ScheduleEvent } from "./types"
+import type { AgendaAppointment, AppointmentType } from "./scheduleConfig"
+import type { AgendaView, AppointmentStatus, EventKind, Professional, Room, ScheduleEvent } from "./types"
 
 const VIEWS: AgendaView[] = ["day", "week", "month"]
 export const ALL = "all"
+
+const KIND_BY_TYPE: Record<AppointmentType, EventKind> = {
+  first_consultation: "first",
+  return_consultation: "return",
+  assessment: "anthropometry",
+}
+
+/** Consulta da API -> evento da grade. */
+function toEvent(appointment: AgendaAppointment): ScheduleEvent {
+  return {
+    id: appointment.id,
+    kind: KIND_BY_TYPE[appointment.appointment_type],
+    title: appointment.patient_name,
+    professionalId: appointment.professional_id,
+    roomId: appointment.room_id ?? undefined,
+    start: new Date(appointment.starts_at),
+    end: new Date(appointment.ends_at),
+    status: appointment.status,
+  }
+}
 
 function parseView(value: string | null): AgendaView {
   return VIEWS.includes(value as AgendaView) ? (value as AgendaView) : "week"
@@ -105,7 +131,6 @@ export function useAgenda() {
   const range = getRange(view, date, includeSunday)
   const rangeStart = range.start.getTime()
   const rangeEnd = range.end.getTime()
-  const nowMinute = Math.floor(now.getTime() / 60_000)
 
   const fromISO = toISODate(range.start)
   const toISO = toISODate(range.end)
@@ -131,25 +156,31 @@ export function useAgenda() {
 
   const grid = useMemo(() => gridBounds(sources, rangeDays), [sources, rangeDays])
 
+  // Consultas reais: o nutricionista recebe só as próprias (a API filtra); recepção/admin, todas ou do profissional escolhido.
+  const appointmentsQuery = useQuery({
+    ...agendaAppointmentsQuery(fromISO, toISO, professionalId === ALL ? undefined : professionalId),
+    enabled: !professionalsQuery.isPending,
+  })
+  const appointmentEvents = useMemo(() => (appointmentsQuery.data ?? []).map(toEvent), [appointmentsQuery.data])
+
+  // Salas reais das unidades (a API já recorta as unidades do nutricionista).
+  const unitsQuery = useScheduleUnits()
+  const rooms: Room[] = useMemo(
+    () => (unitsQuery.data ?? []).flatMap((unit) => unit.rooms.map((room) => ({ id: room.id, name: `${room.name} (${unit.name})` }))),
+    [unitsQuery.data],
+  )
+
   const events = useMemo(() => {
     const period = { start: new Date(rangeStart), end: new Date(rangeEnd) }
-    const subjects: MockSubject[] = sources.map((source) => ({
-      id: source.professionalId,
-      index: professionals.findIndex((item) => item.id === source.professionalId),
-      config: source.config,
-      blocks: source.periods.map((item) => ({ start: new Date(item.starts_at), end: new Date(item.ends_at) })),
-    }))
-    return [
-      ...buildStructureEvents(sources, period),
-      ...getMockAppointments(period, new Date(nowMinute * 60_000), subjects),
-    ].filter(
+    return [...buildStructureEvents(sources, period), ...appointmentEvents].filter(
       (event) =>
         (!event.roomId || roomId === ALL || event.roomId === roomId) && enabledKinds.has(event.kind),
     )
-  }, [sources, professionals, rangeStart, rangeEnd, nowMinute, roomId, enabledKinds])
+  }, [sources, appointmentEvents, rangeStart, rangeEnd, roomId, enabledKinds])
 
-  const pending = professionalsQuery.isPending || configs.some((query) => query.isPending)
-  const loadError = professionalsQuery.error ?? configs.find((query) => query.error)?.error ?? undefined
+  const pending = professionalsQuery.isPending || appointmentsQuery.isPending || configs.some((query) => query.isPending)
+  const loadError =
+    professionalsQuery.error ?? appointmentsQuery.error ?? configs.find((query) => query.error)?.error ?? undefined
   const unconfigured = sources
     .filter((source) => !source.config.configured)
     .map((source) => professionals.find((item) => item.id === source.professionalId)?.name ?? "")
@@ -205,7 +236,7 @@ export function useAgenda() {
     unconfigured,
     durations,
     canPickProfessional: !isNutritionist,
-    rooms: mockRooms,
+    rooms,
     roomId,
     setRoomId,
     enabledKinds,

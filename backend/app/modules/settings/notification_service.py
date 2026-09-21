@@ -1,5 +1,6 @@
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -90,3 +91,12 @@ def update_preferences(db: Session, membership: Membership, payload: Preferences
     db.execute(statement)
     db.commit()
     return read_preferences(db, membership)
+
+
+def effective_for_many(db: Session, memberships: list[Membership]) -> dict:
+    """Preferências efetivas (padrão do papel + o que a pessoa gravou) de vários usuários de uma vez."""
+    rows = {
+        row.membership_id: row.preferences
+        for row in db.scalars(select(NotificationPreference).where(NotificationPreference.membership_id.in_([m.id for m in memberships])))
+    }
+    return {m.id: _merge(default_preferences(m.role), rows.get(m.id, {})) for m in memberships}

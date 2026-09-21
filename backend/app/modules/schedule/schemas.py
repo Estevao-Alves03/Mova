@@ -88,14 +88,25 @@ class ScheduleConfigSaveOut(BaseModel):
     affected_appointments: list[AffectedAppointment]
 
 
-class UnitOut(BaseModel):
+class RoomOut(BaseModel):
     id: UUID
     name: str
+
+
+class UnitOut(BaseModel):
+    """Unidade ativa com suas salas ativas (para escolher onde agendar)."""
+
+    id: UUID
+    name: str
+    address: str | None
+    rooms: list[RoomOut]
 
 
 class ProfessionalOut(BaseModel):
     id: UUID
     full_name: str
+    crn: str | None
+    specialty: str | None
 
 
 # ------------------------------------------------------------------ bloqueios
@@ -200,3 +211,18 @@ class AppointmentOut(BaseModel):
     ends_at: AwareDatetime
     status: AppointmentStatus
     cancellation_source: CancellationSource | None
+
+
+class AgendaAppointmentOut(BaseModel):
+    """Consulta na agenda: só o que a agenda mostra (nada clínico: sem objetivo nem observações)."""
+
+    id: UUID
+    patient_id: UUID
+    patient_name: str
+    professional_id: UUID
+    unit_id: UUID
+    room_id: UUID | None
+    appointment_type: AppointmentType
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    status: AppointmentStatus

@@ -51,19 +51,42 @@ class Clinic(Base):
 class Unit(Base):
     __tablename__ = "units"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     clinic_id: Mapped[uuid.UUID]
     name: Mapped[str] = mapped_column(Text)
-    active: Mapped[bool] = mapped_column(Boolean)
+    address: Mapped[str | None] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class UnitMember(Base):
+    """Nutricionista vinculado a uma unidade pelo admin (define onde ele pode atender)."""
+
+    __tablename__ = "unit_members"
+
+    unit_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    membership_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    clinic_id: Mapped[uuid.UUID]
 
 
 class Room(Base):
     __tablename__ = "rooms"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     clinic_id: Mapped[uuid.UUID]
     unit_id: Mapped[uuid.UUID]
-    active: Mapped[bool] = mapped_column(Boolean)
+    name: Mapped[str] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ConsultationGoal(str, enum.Enum):
+    weight_loss = "weight_loss"
+    muscle_gain = "muscle_gain"
+    healthy_eating = "healthy_eating"
+    clinical = "clinical"
+    sports = "sports"
+    other = "other"
 
 
 class Appointment(Base):
@@ -79,6 +102,9 @@ class Appointment(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[AppointmentStatus] = mapped_column(_pg_enum(AppointmentStatus, "appointment_status"))
     appointment_type: Mapped[AppointmentType] = mapped_column(_pg_enum(AppointmentType, "appointment_type"))
+    # Informados no cadastro do paciente (dado clínico: nunca devolvido à recepção).
+    goal: Mapped[ConsultationGoal | None] = mapped_column(_pg_enum(ConsultationGoal, "consultation_goal"))
+    initial_notes: Mapped[str | None] = mapped_column(Text)
     cancellation_source: Mapped[CancellationSource | None] = mapped_column(
         _pg_enum(CancellationSource, "cancellation_source")
     )

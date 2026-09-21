@@ -19,7 +19,7 @@ O schema do banco é definido em `supabase/migrations/`; os models SQLAlchemy ap
   - `get_current_user`: 401 se não houver token válido.
   - `get_membership`: carrega o membership ativo em `memberships`; 403 se não existir.
   - `require_roles(...)`: 403 para papel não permitido.
-- `core/scoping.py`: único lugar que aplica o escopo de pacientes (admin e recepção: toda a clínica; nutricionista: `nutritionist_id` = seu membership; paciente: `user_id` do token).
+- `core/scoping.py` (`scope_patients`): único lugar que aplica o escopo de pacientes (admin e recepção: toda a clínica; nutricionista: `nutritionist_id` = seu membership; paciente: `user_id` do token).
 - Sempre filtrar por `clinic_id` do membership. Regras completas em `docs/permissoes.md`.
 
 ## Regras de domínio
@@ -35,6 +35,11 @@ O schema do banco é definido em `supabase/migrations/`; os models SQLAlchemy ap
 - Anamnese: `draft` editável; `finalized` somente leitura. Um rascunho por paciente.
 - Avaliação corporal: cálculos (IMC, % gordura, massas) ficam isolados em `modules/assessments/calculations.py`, com testes de valores conhecidos. O protótipo usa Pollock 7 dobras. NÃO implementar as fórmulas de memória: pedir a referência validada por um nutricionista antes. Sexo e data de nascimento do paciente são obrigatórios para calcular.
 - Evolução é calculada a partir das avaliações; não tem tabela própria.
+
+- Pacientes (`modules/patients`): `POST /patients` cria paciente + 1ª consulta na MESMA transação, reutilizando `schedule.add_appointment` (mesma validação de disponibilidade) e `commit_or_translate`; se algo falhar, nada é criado. Objetivo e observação inicial ficam na consulta (`appointments.goal`, `initial_notes`), nunca no cadastro e nunca devolvidos à recepção.
+- Vínculo unidade × nutricionista (`unit_members`, definido só pelo admin): o nutricionista só vê/configura atendimento nas unidades vinculadas (`GET /schedule/units`, `save_config`). Nunca vincular automaticamente ao criar unidade/sala. Listas reais: `GET /patients` (escopo + recorte clínico por papel, `response_model=None` para a recepção não receber `goal`) e `GET /schedule/appointments`.
+- Notificações (`modules/notifications`): avisos do sino gerados pelos eventos do catálogo de preferências. `notify_appointment` roda na MESMA transação da consulta (criar, remarcar, cancelar, cadastro de paciente), respeita a preferência de cada destinatário e nunca leva dado clínico; quem agiu não é avisado. Resumo diário é criado sob demanda (sem agendador). Evento novo no catálogo precisa de gerador aqui para valer.
+- Equipe e unidades (`modules/settings/team_*`, `unit_*`): só `admin`, sempre pela clínica do token. Usuários novos nascem pela API admin do Supabase Auth (`auth_admin.py`, só com a `service_role`) com senha temporária devolvida uma única vez; se o cadastro no banco falha, o usuário do Auth é removido. Nunca vincular um e-mail que já existe no Auth. Nada é excluído: desativa-se.
 
 ## Banco
 

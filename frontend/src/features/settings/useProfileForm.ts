@@ -4,20 +4,13 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 import { ApiError } from "@/lib/api"
+import { isValidPhone } from "@/lib/masks"
 
 import { useUpdateProfile } from "./api"
 import type { Profile, ProfileUpdate } from "./types"
 
 const CRN_PATTERN = /^CRN-\d{1,2} \d{3,6}$/
 export const MAX_BIO_LENGTH = 350
-
-function isValidPhone(value: string) {
-  if (value === "") return true
-  const digits = value.replace(/\D/g, "")
-  if (digits.length !== 10 && digits.length !== 11) return false
-  if (digits[0] === "0") return false
-  return digits.length === 10 || digits[2] === "9"
-}
 
 const crnRegion = (value: string) => /CRN-(\d+)/.exec(value)?.[1]
 

@@ -6,18 +6,10 @@ import { ScrollRegion } from "@/components/shared/ScrollRegion"
 import { Button } from "@/components/ui/button"
 import { useProfile } from "@/features/settings/api"
 import { cn } from "@/lib/utils"
-import { mockTeam, mockUnits } from "@/mocks/settings"
 
+import { useAdminUnits, useTeam } from "./api"
 import { categoriesFor, type SettingsCategoryPath } from "./categories"
 import type { PageActions, SettingsOutletContext } from "./settingsContext"
-
-const activeMembers = mockTeam.filter((member) => member.status === "active").length
-
-const SUBTITLES: Record<SettingsCategoryPath, string> = {
-  team: `${activeMembers} membros ativos`,
-  notifications: "Alertas & sons",
-  units: mockUnits.map((unit) => unit.name).join(" & "),
-}
 
 /**
  * Estrutura fixa: cabeçalho e lista de categorias não rolam; só o conteúdo da
@@ -30,6 +22,16 @@ export function SettingsLayout() {
   const context = useMemo<SettingsOutletContext>(() => ({ setActions }), [])
 
   const categories = categoriesFor(profile?.role)
+  // Só o admin acessa Equipe e Unidades; para os demais não há o que contar.
+  const isAdmin = profile?.role === "admin"
+  const team = useTeam(isAdmin)
+  const units = useAdminUnits(isAdmin)
+  const activeMembers = team.data?.filter((member) => member.status !== "inactive").length
+  const subtitles: Record<SettingsCategoryPath, string> = {
+    team: activeMembers === undefined ? "" : `${activeMembers} ${activeMembers === 1 ? "membro ativo" : "membros ativos"}`,
+    notifications: "Alertas & sons",
+    units: units.data?.filter((unit) => unit.active).map((unit) => unit.name).join(" & ") ?? "",
+  }
   const isPlatform = categories.some((category) => category.scope === "platform")
   const current = categories.find((category) => pathname.endsWith(`/${category.path}`))
 
@@ -47,19 +49,15 @@ export function SettingsLayout() {
             <h1 className="text-2xl leading-8 font-semibold tracking-tight">
               {isPlatform ? "Configurações da Plataforma" : "Configurações"}
             </h1>
-            {!actions && (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] leading-[14px] font-semibold text-muted-foreground">
-                Somente visualização
-              </span>
-            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {isPlatform
-              ? "Gerencie os membros da equipe, níveis de acesso e preferências de alertas da clínica."
+              ? "Gerencie a equipe, os níveis de acesso, as unidades e os consultórios da clínica."
               : "Ajuste suas preferências pessoais."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Salvar/Descartar só existem nas abas com formulário próprio (Notificações). Equipe e Unidades salvam cada ação na hora. */}
+        <div className={cn("items-center gap-2", actions ? "flex" : "hidden")}>
           <Button
             type="button"
             variant="ghost"
@@ -113,7 +111,7 @@ export function SettingsLayout() {
                           {title}
                         </span>
                         <span className="hidden truncate text-[11px] leading-[14px] text-muted-foreground xl:block">
-                          {SUBTITLES[path]}
+                          {subtitles[path]}
                         </span>
                       </span>
                       <ChevronRight className="hidden size-4 shrink-0 text-muted-foreground xl:block" aria-hidden />

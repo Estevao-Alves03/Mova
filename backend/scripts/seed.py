@@ -168,6 +168,11 @@ def main() -> int:
             )
 
         for key, schedule in SCHEDULES.items():
+            # O admin vincula cada nutricionista às unidades em que atende (aqui, a única unidade do seed).
+            conn.execute(
+                text("insert into unit_members (unit_id, membership_id, clinic_id) values (:u, :m, :c) on conflict do nothing"),
+                {"u": UNIT_ID, "m": membership_ids[key], "c": CLINIC_ID},
+            )
             _seed_schedule(conn, key, membership_ids[key], schedule)
 
         patient_ids: dict[str, uuid.UUID] = {}

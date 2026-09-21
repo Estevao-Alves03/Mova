@@ -5,7 +5,7 @@ import { formatDecimal, formatPercent } from "@/lib/format"
 import { mockDashboard } from "@/mocks/dashboard"
 
 import { DashboardHeader } from "./components/DashboardHeader"
-import { KpiCard } from "./components/KpiCard"
+import { KpiCard } from "@/components/shared/KpiCard"
 import { OperationalRhythmChart } from "./components/OperationalRhythmChart"
 import { RetentionAlertsCard } from "./components/RetentionAlertsCard"
 

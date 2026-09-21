@@ -8,6 +8,8 @@ interface KpiCardProps {
   icon: LucideIcon
   /** Ícone em destaque (fundo accent) ou neutro. */
   highlighted?: boolean
+  /** Cores próprias do ícone (ex.: alerta em amarelo); substitui `highlighted`. */
+  iconClassName?: string
   value: ReactNode
   /** Conteúdo ao lado do valor (meta, selo, unidade). */
   valueAside?: ReactNode
@@ -19,6 +21,7 @@ export function KpiCard({
   label,
   icon: Icon,
   highlighted,
+  iconClassName,
   value,
   valueAside,
   footer,
@@ -42,7 +45,7 @@ export function KpiCard({
         <div
           className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-xl",
-            highlighted ? "bg-accent text-accent-foreground" : "bg-muted text-foreground",
+            iconClassName ?? (highlighted ? "bg-accent text-accent-foreground" : "bg-muted text-foreground"),
           )}
         >
           <Icon className="size-[22px]" aria-hidden />

@@ -49,7 +49,7 @@ export function AppSidebar({ profile }: AppSidebarProps) {
                 Mova
               </span>
               <span className="font-data text-[11px] leading-[14px] font-semibold tracking-wider text-sidebar-foreground/80 uppercase">
-                NutriGestão Pro
+                Gestão Nutricional
               </span>
             </div>
           </div>

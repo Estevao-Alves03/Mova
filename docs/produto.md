@@ -177,6 +177,14 @@ Depois da criação:
 
 Os dados clínicos não devem ser misturados ao cadastro básico.
 
+**Fluxo "Novo paciente & primeira consulta"** (recepção e admin), em 3 etapas: 1) dados básicos, 2) nutricionista responsável, data e horário disponíveis, 3) confirmação. Nada é gravado antes de confirmar o agendamento ("Confirmar Agendamento & Salvar Paciente", na etapa 2): paciente e 1ª consulta são criados juntos, ou nenhum dos dois.
+
+* Etapa 1: nome (obrigatório), data de nascimento e e-mail (opcionais), telefone/WhatsApp (obrigatório), sexo (Feminino, Masculino ou "Outro / Prefiro não informar", que grava o sexo em branco; a avaliação corporal exigirá o sexo antes de calcular) e o **objetivo principal e a observação inicial** da consulta.
+* O objetivo e a observação ficam com a **primeira consulta agendada**, não no cadastro básico (são informação clínica, e o modelo de metas continua indefinido).
+* Etapa 2: nutricionista responsável (obrigatório; só quem tem a agenda configurada pode ser escolhido), data e horário **da disponibilidade real do profissional** (duração da 1ª consulta definida por ele), unidade e sala (opcional). Teleconsulta aparece como "Em breve".
+* Etapa 3: confirmação depois de gravar, com a ficha do paciente, a 1ª sessão (profissional, dia, hora, duração, unidade e sala) e os atalhos "Ver na Agenda Clínica" e "Concluir e Voltar à Lista". "Ir para o Perfil do Paciente" fica inativo até existir a tela do paciente.
+* Não fazem parte do cadastro: CPF, canal de preferência para lembretes (não há envio de mensagens na demo) e aviso de LGPD.
+
 ---
 
 # 6. Agenda
@@ -353,17 +361,16 @@ A implementação definitiva dos indicadores depende das regras de cada papel e 
 
 Existem funcionalidades administrativas relacionadas à configuração da clínica e do usuário.
 
-Na demo atual, algumas dessas funcionalidades serão apenas visuais ou somente leitura.
+Na demo atual, o que ainda não tem regra definida permanece apenas visual ou somente leitura (por exemplo, as configurações gerais da plataforma). Não devem receber regras complexas de negócio enquanto não estiverem definidas.
 
-Incluem:
+As **preferências de notificação** de cada usuário também são funcionais (ver abaixo).
 
-* convite de usuários;
-* configurações da plataforma;
-* unidades e consultórios.
+O **sino de notificações** também é funcional: mostra os avisos dos eventos que cada pessoa ligou nas preferências (nova consulta, cancelamento/remarcação e resumo diário), com contador de não lidas, alertas na tela e sons conforme as preferências (ver `docs/permissoes.md`).
 
-Não devem receber regras complexas de negócio enquanto não estiverem definidas.
+**Equipe e acesso** e **unidades e consultórios** são funcionais e restritos ao Admin, sempre na própria clínica:
 
-As **preferências de notificação** de cada usuário também são funcionais (ver abaixo). Equipe e acesso, unidades e consultórios continuam somente visuais e restritos ao Admin.
+* Equipe: listar os membros (nome, e-mail, função, status, último acesso); criar o acesso de um novo membro (nutricionista, recepção ou admin) com uma **senha temporária** exibida uma única vez para o admin repassar (não há envio de e-mail); editar nome e função; desativar e reativar o acesso. Nada é excluído: desativar bloqueia o acesso na hora e preserva o histórico. O admin não altera a própria função nem desativa a própria conta, e a clínica nunca fica sem um admin ativo. Um nutricionista com pacientes ou consultas futuras não muda de função.
+* Unidades e consultórios: cadastrar e editar unidades (nome, endereço, telefone, e-mail) e salas; desativar e reativar. Depois de criar a unidade e as salas, o admin **vincula os nutricionistas** que atendem nela (nada é vinculado automaticamente); o nutricionista só define atendimento (Minha Agenda) nas unidades vinculadas. O horário de atendimento **não** é da unidade: cada nutricionista define o próprio expediente em Minha Agenda. Não se desativa unidade usada na agenda de um profissional ou com consultas futuras, nem sala com consultas futuras.
 
 O **perfil do usuário** é funcional. Cada usuário da equipe pode:
 
@@ -577,11 +584,7 @@ A demo deve contemplar, nesta ordem:
 12. Evolução.
 13. Dashboard por papel.
 
-As funcionalidades abaixo podem permanecer apenas visuais ou somente leitura:
-
-* convite de usuários;
-* configurações da plataforma;
-* unidades e consultórios.
+Podem permanecer apenas visuais ou somente leitura as configurações gerais da plataforma que ainda não tenham regra definida. Equipe e acesso e unidades e consultórios são funcionais (ver §12).
 
 ---
 

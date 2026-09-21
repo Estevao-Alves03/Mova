@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import field_error
 from app.modules.auth.models import Membership, UserRole
+from app.modules.notifications.service import notify_appointment
 from app.modules.patients.models import Patient
 from app.modules.schedule import availability as engine
 from app.modules.schedule.models import (
@@ -33,9 +34,11 @@ from app.modules.schedule.models import (
     ProfessionalScheduleSettings,
     Room,
     Unit,
+    UnitMember,
 )
 from app.modules.schedule.schemas import (
     AffectedAppointment,
+    AgendaAppointmentOut,
     AppointmentCancel,
     AppointmentCreate,
     AppointmentReschedule,
@@ -85,7 +88,19 @@ def _db_error_to_http(error: DBAPIError) -> HTTPException | None:
     return None
 
 
-def _commit(db: Session) -> None:
+def flush_or_translate(db: Session) -> None:
+    """Envia os INSERTs pendentes (a trava do banco roda aqui) traduzindo os erros de disponibilidade."""
+    try:
+        db.flush()
+    except DBAPIError as error:
+        db.rollback()
+        mapped = _db_error_to_http(error)
+        if mapped is None:
+            raise
+        raise mapped from error
+
+
+def commit_or_translate(db: Session) -> None:
     try:
         db.commit()
     except DBAPIError as error:
@@ -224,13 +239,21 @@ def _affected(db: Session, professional: Membership, rules: engine.Rules, blocks
 def save_config(db: Session, professional: Membership, payload: ScheduleConfigIn) -> ScheduleConfigSaveOut:
     unit_ids = {day.unit_id for day in payload.days}
     if unit_ids:
+        # Só as unidades em que o admin vinculou este nutricionista (e que estejam ativas).
         valid = set(
             db.scalars(
-                select(Unit.id).where(Unit.clinic_id == professional.clinic_id, Unit.active.is_(True), Unit.id.in_(unit_ids))
+                select(Unit.id)
+                .join(UnitMember, UnitMember.unit_id == Unit.id)
+                .where(
+                    Unit.clinic_id == professional.clinic_id,
+                    Unit.active.is_(True),
+                    Unit.id.in_(unit_ids),
+                    UnitMember.membership_id == professional.id,
+                )
             )
         )
         if valid != unit_ids:
-            raise field_error(422, "days", "Unidade inválida para esta clínica.")
+            raise field_error(422, "days", "Escolha apenas unidades vinculadas a este profissional.")
 
     # Somente tabelas de configuração: `appointments` não é tocada aqui.
     db.execute(delete(ProfessionalAvailability).where(ProfessionalAvailability.professional_id == professional.id))
@@ -263,7 +286,7 @@ def save_config(db: Session, professional: Membership, payload: ScheduleConfigIn
     rules = load_rules(db, professional.id)
     affected = _affected(db, professional, rules, _blocks(db, professional.id))
     config = get_config(db, professional)
-    _commit(db)
+    commit_or_translate(db)
     return ScheduleConfigSaveOut(config=config, affected_appointments=affected)
 
 
@@ -296,7 +319,7 @@ def create_block(db: Session, actor: Membership, professional: Membership, paylo
         created_by=actor.id,
     )
     db.add(block)
-    _commit(db)
+    commit_or_translate(db)
     return block
 
 
@@ -318,7 +341,7 @@ def delete_block(db: Session, professional: Membership, block_id: UUID) -> None:
     if block is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bloqueio não encontrado.")
     db.delete(block)
-    _commit(db)
+    commit_or_translate(db)
 
 
 # ------------------------------------------------------------------ horários livres
@@ -360,7 +383,7 @@ def outside_availability(db: Session, professional: Membership) -> list[Affected
 
 # ------------------------------------------------------------------ consultas
 
-def _validated_slot(db: Session, professional: Membership, appointment_type: AppointmentType, start: datetime, exclude: UUID | None = None):
+def validated_slot(db: Session, professional: Membership, appointment_type: AppointmentType, start: datetime, exclude: UUID | None = None):
     tz = clinic_timezone(db, professional.clinic_id)
     rules = load_rules(db, professional.id)
     day = start.astimezone(tz).date()
@@ -379,6 +402,47 @@ def _validated_slot(db: Session, professional: Membership, appointment_type: App
         raise availability_http_error(error.code) from error
 
 
+def add_appointment(
+    db: Session,
+    actor: Membership,
+    professional: Membership,
+    patient_id: UUID,
+    appointment_type: AppointmentType,
+    starts_at: datetime,
+    room_id: UUID | None = None,
+    **extra,
+) -> Appointment:
+    """Valida o horário e a sala e ADICIONA a consulta à sessão (quem chama faz o commit).
+
+    Toda regra de disponibilidade passa por aqui, seja no agendamento avulso ou no cadastro do paciente.
+    """
+    slot = validated_slot(db, professional, appointment_type, starts_at)
+    if room_id:
+        room = db.scalars(
+            select(Room).where(
+                Room.id == room_id, Room.clinic_id == actor.clinic_id, Room.unit_id == slot.unit_id, Room.active.is_(True)
+            )
+        ).first()
+        if room is None:
+            raise field_error(422, "room_id", "Sala inválida para a unidade deste horário.")
+
+    appointment = Appointment(
+        clinic_id=actor.clinic_id,
+        patient_id=patient_id,
+        professional_id=professional.id,
+        unit_id=slot.unit_id,
+        room_id=room_id,
+        starts_at=slot.start,
+        ends_at=slot.end,
+        status=AppointmentStatus.scheduled,
+        appointment_type=appointment_type,
+        created_by=actor.id,
+        **extra,
+    )
+    db.add(appointment)
+    return appointment
+
+
 def create_appointment(db: Session, actor: Membership, payload: AppointmentCreate) -> Appointment:
     professional = resolve_professional(db, actor, payload.professional_id)
     patient = db.scalars(
@@ -388,31 +452,12 @@ def create_appointment(db: Session, actor: Membership, payload: AppointmentCreat
     ).first()
     if patient is None:
         raise field_error(422, "patient_id", "Paciente não encontrado.")
-
-    slot = _validated_slot(db, professional, payload.appointment_type, payload.starts_at)
-    if payload.room_id:
-        room = db.scalars(
-            select(Room).where(
-                Room.id == payload.room_id, Room.clinic_id == actor.clinic_id, Room.unit_id == slot.unit_id, Room.active.is_(True)
-            )
-        ).first()
-        if room is None:
-            raise field_error(422, "room_id", "Sala inválida para a unidade deste horário.")
-
-    appointment = Appointment(
-        clinic_id=actor.clinic_id,
-        patient_id=patient.id,
-        professional_id=professional.id,
-        unit_id=slot.unit_id,
-        room_id=payload.room_id,
-        starts_at=slot.start,
-        ends_at=slot.end,
-        status=AppointmentStatus.scheduled,
-        appointment_type=payload.appointment_type,
-        created_by=actor.id,
+    appointment = add_appointment(
+        db, actor, professional, patient.id, payload.appointment_type, payload.starts_at, payload.room_id
     )
-    db.add(appointment)
-    _commit(db)
+    flush_or_translate(db)
+    notify_appointment(db, actor, appointment, professional, "created")  # mesma transação da consulta
+    commit_or_translate(db)
     return appointment
 
 
@@ -431,9 +476,11 @@ def reschedule_appointment(db: Session, actor: Membership, appointment_id: UUID,
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Só é possível remarcar consultas agendadas ou confirmadas.")
     professional = resolve_professional(db, actor, appointment.professional_id)
     # Usa a duração ATUAL do tipo; consultas não remarcadas mantêm o ends_at original.
-    slot = _validated_slot(db, professional, appointment.appointment_type, payload.starts_at, exclude=appointment.id)
+    slot = validated_slot(db, professional, appointment.appointment_type, payload.starts_at, exclude=appointment.id)
+    previous_start = appointment.starts_at
     appointment.starts_at, appointment.ends_at, appointment.unit_id = slot.start, slot.end, slot.unit_id
-    _commit(db)
+    notify_appointment(db, actor, appointment, professional, "rescheduled", previous_start=previous_start)
+    commit_or_translate(db)
     return appointment
 
 
@@ -462,5 +509,65 @@ def cancel_appointment(db: Session, actor: Membership, appointment_id: UUID, pay
                 created_by=actor.id,
             )
         )
-    _commit(db)
+    professional = db.get(Membership, appointment.professional_id)
+    if professional is not None:
+        notify_appointment(db, actor, appointment, professional, "cancelled", cancel_source=payload.source.value)
+    commit_or_translate(db)
     return appointment
+
+
+# ------------------------------------------------------------------ agenda (leitura)
+
+# Cancelada libera o horário e sai da agenda; as demais aparecem.
+AGENDA_STATUSES = (
+    AppointmentStatus.scheduled,
+    AppointmentStatus.confirmed,
+    AppointmentStatus.completed,
+    AppointmentStatus.no_show,
+)
+
+
+def list_agenda(
+    db: Session, actor: Membership, first: date, last: date, professional_id: UUID | None
+) -> list[AgendaAppointmentOut]:
+    """Consultas do período. O nutricionista só enxerga as próprias (outro profissional = 404)."""
+    if actor.role == UserRole.nutritionist:
+        if professional_id is not None and professional_id != actor.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profissional não encontrado.")
+        professional_id = actor.id
+    elif professional_id is not None:
+        professional_id = resolve_professional(db, actor, professional_id).id
+
+    if last < first or (last - first).days > MAX_AVAILABILITY_DAYS:
+        raise field_error(422, "to", f"Informe um período de até {MAX_AVAILABILITY_DAYS} dias.")
+    tz = clinic_timezone(db, actor.clinic_id)
+    start, end = local_to_utc(tz, first), local_to_utc(tz, last + timedelta(days=1))
+
+    query = (
+        select(Appointment, Patient.full_name)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .where(
+            Appointment.clinic_id == actor.clinic_id,
+            Appointment.status.in_(AGENDA_STATUSES),
+            Appointment.starts_at < end,
+            Appointment.ends_at > start,
+        )
+        .order_by(Appointment.starts_at)
+    )
+    if professional_id is not None:
+        query = query.where(Appointment.professional_id == professional_id)
+    return [
+        AgendaAppointmentOut(
+            id=appointment.id,
+            patient_id=appointment.patient_id,
+            patient_name=patient_name,
+            professional_id=appointment.professional_id,
+            unit_id=appointment.unit_id,
+            room_id=appointment.room_id,
+            appointment_type=appointment.appointment_type,
+            starts_at=appointment.starts_at,
+            ends_at=appointment.ends_at,
+            status=appointment.status,
+        )
+        for appointment, patient_name in db.execute(query)
+    ]

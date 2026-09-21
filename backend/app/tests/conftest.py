@@ -83,6 +83,10 @@ def make_user(settings: Settings, clinic: uuid.UUID) -> Iterator[Callable[..., T
             text("select avatar_path from memberships where clinic_id = :c and avatar_path is not null"),
             {"c": clinic},
         ).scalars().all()
+        # Usuários criados pela própria API (ex.: equipe) também precisam sair do Supabase Auth.
+        api_created = conn.execute(
+            text("select user_id from memberships where clinic_id = :c"), {"c": clinic}
+        ).scalars().all()
         conn.execute(text("delete from appointments where clinic_id = :c"), {"c": clinic})
         conn.execute(text("delete from patients where clinic_id = :c"), {"c": clinic})
         conn.execute(text("delete from professional_availability where clinic_id = :c"), {"c": clinic})
@@ -92,8 +96,8 @@ def make_user(settings: Settings, clinic: uuid.UUID) -> Iterator[Callable[..., T
         conn.execute(text("delete from clinics where id = :c"), {"c": clinic})
     for path in paths:
         helpers.delete_storage_object(settings, path)
-    for user in created:
-        helpers.delete_auth_user(settings, user.user_id)
+    for user_id in {user.user_id for user in created} | set(api_created):
+        helpers.delete_auth_user(settings, user_id)
 
 
 @pytest.fixture
@@ -133,6 +137,8 @@ def world(clinic, make_user, auth_headers) -> World:
     reception = make_user(role="receptionist", full_name="Recepção")
     admin = make_user(role="admin", full_name="Admin")
     unit = sh.insert_unit(clinic)
+    for nutritionist in (nutri, other):
+        sh.link_nutritionist(clinic, unit, nutritionist.membership_id)
     patient = sh.insert_patient(clinic, nutri.membership_id, "Paciente Um")
     return World(
         clinic=clinic, unit=unit, patient=patient, nutri=nutri, other=other, reception=reception, admin=admin,

@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.validators import normalize_phone
 from app.modules.auth.models import UserRole
 from app.modules.settings.constants import CRN_STATE_OPTIONS, MAX_BIO_LENGTH
 
@@ -69,14 +70,7 @@ class ProfileUpdate(BaseModel):
         value = _blank_to_none(value)
         if value is None:
             return None
-        digits = re.sub(r"\D", "", value)
-        if len(digits) not in (10, 11) or digits[0] == "0":
-            raise ValueError("Telefone inválido. Use DDD + número.")
-        if len(digits) == 11:
-            if digits[2] != "9":
-                raise ValueError("Celular inválido: o número deve começar com 9.")
-            return f"({digits[:2]}) {digits[2:7]}-{digits[7:]}"
-        return f"({digits[:2]}) {digits[2:6]}-{digits[6:]}"
+        return normalize_phone(value)
 
     @field_validator("crn")
     @classmethod

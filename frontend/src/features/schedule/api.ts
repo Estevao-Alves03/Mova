@@ -4,6 +4,9 @@ import { api } from "@/lib/api"
 
 import type {
   AffectedAppointment,
+  AgendaAppointment,
+  Availability,
+  AppointmentType,
   BlockPayload,
   ScheduleBlock,
   ScheduleConfig,
@@ -59,6 +62,29 @@ export function unavailablePeriodsQuery(professionalId: string, from: string, to
     queryFn: () =>
       api<UnavailablePeriod[]>(`${base(professionalId)}/unavailable-periods?from=${from}&to=${to}`),
     staleTime: 60 * 1000,
+  }
+}
+
+/** Consultas reais do período (YYYY-MM-DD). O nutricionista recebe só as próprias; recepção e admin, todas ou de um profissional. */
+export function agendaAppointmentsQuery(from: string, to: string, professionalId?: string) {
+  const filter = professionalId ? `&professional_id=${professionalId}` : ""
+  return {
+    queryKey: ["schedule", "agenda", from, to, professionalId ?? "all"] as const,
+    queryFn: () => api<AgendaAppointment[]>(`/schedule/appointments?from=${from}&to=${to}${filter}`),
+    staleTime: 15 * 1000,
+  }
+}
+
+/** Horários livres de um tipo de atendimento entre duas datas (YYYY-MM-DD, até 62 dias). */
+export function availabilityQuery(professionalId: string, type: AppointmentType, from: string, to: string) {
+  return {
+    queryKey: ["schedule", "availability", professionalId, type, from, to] as const,
+    queryFn: () =>
+      api<Availability>(
+        `/schedule/availability?professional_id=${professionalId}&appointment_type=${type}&from=${from}&to=${to}`,
+      ),
+    // Horários mudam a cada agendamento: nada de cache longo.
+    staleTime: 15 * 1000,
   }
 }
 

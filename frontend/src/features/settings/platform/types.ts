@@ -1,16 +1,26 @@
 import type { UserRole } from "@/types/user"
 
+// Formatos da API (snake_case), sem camada de conversão.
+
 export type MemberStatus = "active" | "invited" | "inactive"
 
 export interface TeamMember {
   id: string
-  fullName: string
+  full_name: string
   email: string
   role: UserRole
-  crn?: string
+  crn: string | null
+  active: boolean
+  /** inactive: desativado; invited: ainda não fez o primeiro acesso; active: já acessou. */
   status: MemberStatus
-  /** Texto pronto para exibição. */
-  lastAccess: string
+  last_sign_in_at: string | null
+  is_you: boolean
+}
+
+export interface MemberCreated {
+  member: TeamMember
+  /** Vem uma única vez, só na resposta da criação. */
+  temporary_password: string
 }
 
 export interface UnitRoom {
@@ -19,13 +29,20 @@ export interface UnitRoom {
   active: boolean
 }
 
+/** Nutricionista vinculado à unidade pelo admin. */
+export interface UnitMemberLink {
+  id: string
+  full_name: string
+  active: boolean
+}
+
 export interface ClinicUnit {
   id: string
   name: string
-  address: string
+  address: string | null
+  phone: string | null
+  email: string | null
   active: boolean
-  hours: string
-  phone: string
-  email: string
   rooms: UnitRoom[]
+  members: UnitMemberLink[]
 }

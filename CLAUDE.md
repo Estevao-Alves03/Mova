@@ -63,9 +63,7 @@ Entra, funcional, nesta ordem:
 6. Avaliação corporal, histórico e evolução.
 7. Dashboard por papel.
 
-Só visual ou somente leitura (sem lógica): convite de usuário, equipe e acesso, unidades e consultórios.
-
-Funcional (fora da ordem acima, por decisão posterior): **perfil do usuário** (editar dados, foto, trocar senha, 2FA por app autenticador e sessões ativas) e **preferências de notificação** de cada usuário (todos os papéis). Regras em `docs/permissoes.md`.
+Funcional (fora da ordem acima, por decisão posterior): **perfil do usuário** (editar dados, foto, trocar senha, 2FA por app autenticador e sessões ativas), **preferências de notificação** de cada usuário (todos os papéis), **equipe e acesso** e **unidades e consultórios** (só admin; convite por senha temporária, sem e-mail). Regras em `docs/permissoes.md`.
 
 Fora de escopo: telas do portal do paciente, ativação de conta do paciente, super admin, dados reais, LGPD (consentimento e política), envio de e-mail ou WhatsApp.
 

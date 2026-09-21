@@ -94,14 +94,39 @@ export interface UnavailablePeriod {
   label: "Indisponível"
 }
 
+export interface ScheduleRoom {
+  id: string
+  name: string
+}
+
+/** Unidade ativa com as salas ativas (para escolher onde agendar). */
 export interface ScheduleUnit {
   id: string
   name: string
+  address: string | null
+  rooms: ScheduleRoom[]
 }
 
 export interface ScheduleProfessional {
   id: string
   full_name: string
+  crn: string | null
+  specialty: string | null
+}
+
+export interface AvailabilitySlot {
+  starts_at: string
+  ends_at: string
+  unit_id: string
+}
+
+/** Horários livres calculados pela API (o front nunca decide disponibilidade). */
+export interface Availability {
+  professional_id: string
+  appointment_type: AppointmentType
+  duration_minutes: number | null
+  configured: boolean
+  slots: AvailabilitySlot[]
 }
 
 export const OUTSIDE_REASON_LABELS: Record<AffectedAppointment["reason"], string> = {
@@ -122,4 +147,20 @@ export function formatDuration(minutes: number) {
 export function toMinutes(value: string) {
   const [hours, minutes] = value.split(":").map(Number)
   return hours * 60 + minutes
+}
+
+export type AppointmentStatusValue = "scheduled" | "confirmed" | "completed" | "no_show"
+
+/** Consulta real da agenda (a API não devolve nada clínico aqui). */
+export interface AgendaAppointment {
+  id: string
+  patient_id: string
+  patient_name: string
+  professional_id: string
+  unit_id: string
+  room_id: string | null
+  appointment_type: AppointmentType
+  starts_at: string
+  ends_at: string
+  status: AppointmentStatusValue
 }

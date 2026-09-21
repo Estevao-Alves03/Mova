@@ -54,6 +54,15 @@ def insert_unit(clinic_id, name: str = "Unidade Teste") -> uuid.UUID:
     return unit_id
 
 
+def link_nutritionist(clinic_id, unit_id, membership_id) -> None:
+    """Vínculo feito pelo admin: sem ele o nutricionista não configura atendimento na unidade."""
+    with get_engine().begin() as conn:
+        conn.execute(
+            text("insert into unit_members (unit_id, membership_id, clinic_id) values (:u, :m, :c) on conflict do nothing"),
+            {"u": unit_id, "m": membership_id, "c": clinic_id},
+        )
+
+
 def insert_room(clinic_id, unit_id, name: str = "Sala Teste") -> uuid.UUID:
     room_id = uuid.uuid4()
     with get_engine().begin() as conn:

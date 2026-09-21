@@ -21,8 +21,8 @@ def _insert_patient(clinic, nutritionist_id, name="Paciente Teste"):
 def _insert_appointment(clinic, patient_id, professional_id, status, hour):
     with get_engine().begin() as conn:
         unit_id = conn.execute(
-            text("insert into units (id, clinic_id, name) values (gen_random_uuid(), :c, 'U') returning id"),
-            {"c": clinic},
+            text("insert into units (id, clinic_id, name) values (gen_random_uuid(), :c, :n) returning id"),
+            {"c": clinic, "n": f"U-{uuid.uuid4().hex[:6]}"},
         ).scalar_one()
         conn.execute(
             text(

@@ -8,9 +8,10 @@ from sqlalchemy import select
 from app.core.deps import DbSession, require_roles
 from app.modules.auth.models import Membership, UserRole
 from app.modules.schedule import service
-from app.modules.schedule.models import AppointmentType, Unit
+from app.modules.schedule.models import AppointmentType, Room, Unit, UnitMember
 from app.modules.schedule.schemas import (
     AffectedAppointment,
+    AgendaAppointmentOut,
     AppointmentCancel,
     AppointmentCreate,
     AppointmentOut,
@@ -19,6 +20,7 @@ from app.modules.schedule.schemas import (
     BlockCreate,
     BlockOut,
     ProfessionalOut,
+    RoomOut,
     ScheduleConfigIn,
     ScheduleConfigOut,
     ScheduleConfigSaveOut,
@@ -39,10 +41,21 @@ Bookers = Annotated[Membership, Depends(require_roles(UserRole.admin, UserRole.r
 
 @router.get("/units", response_model=list[UnitOut])
 def list_units(actor: Readers, db: DbSession) -> list[UnitOut]:
-    rows = db.scalars(
-        select(Unit).where(Unit.clinic_id == actor.clinic_id, Unit.active.is_(True)).order_by(Unit.name)
-    )
-    return [UnitOut(id=unit.id, name=unit.name) for unit in rows]
+    query = select(Unit).where(Unit.clinic_id == actor.clinic_id, Unit.active.is_(True)).order_by(Unit.name)
+    if actor.role == UserRole.nutritionist:
+        # O nutricionista só vê (e só pode escolher) as unidades a que o admin o vinculou.
+        query = query.join(UnitMember, UnitMember.unit_id == Unit.id).where(UnitMember.membership_id == actor.id)
+    units = list(db.scalars(query))
+    rooms = list(db.scalars(select(Room).where(Room.clinic_id == actor.clinic_id, Room.active.is_(True)).order_by(Room.name)))
+    return [
+        UnitOut(
+            id=unit.id,
+            name=unit.name,
+            address=unit.address,
+            rooms=[RoomOut(id=room.id, name=room.name) for room in rooms if room.unit_id == unit.id],
+        )
+        for unit in units
+    ]
 
 
 @router.get("/professionals", response_model=list[ProfessionalOut])
@@ -53,7 +66,7 @@ def list_professionals(actor: Readers, db: DbSession) -> list[ProfessionalOut]:
     )
     if actor.role == UserRole.nutritionist:
         query = query.where(Membership.id == actor.id)
-    return [ProfessionalOut(id=m.id, full_name=m.full_name) for m in db.scalars(query.order_by(Membership.full_name))]
+    return [ProfessionalOut(id=m.id, full_name=m.full_name, crn=m.crn, specialty=m.specialty) for m in db.scalars(query.order_by(Membership.full_name))]
 
 
 # ------------------------------------------------------------------ configuração (dono e admin escrevem)
@@ -115,6 +128,18 @@ def unavailable_periods(
     professional = service.resolve_professional(db, actor, professional_id)
     _, start, end = service.range_bounds(db, professional, from_, to)
     return [UnavailablePeriodOut(starts_at=b.starts_at, ends_at=b.ends_at) for b in service.list_blocks(db, professional, start, end)]
+
+
+@router.get("/appointments", response_model=list[AgendaAppointmentOut])
+def list_appointments(
+    actor: Readers,
+    db: DbSession,
+    from_: Annotated[date, Query(alias="from")],
+    to: date,
+    professional_id: UUID | None = None,
+) -> list[AgendaAppointmentOut]:
+    """Consultas reais da agenda (recepção e admin: todas ou de um profissional; nutricionista: só as próprias)."""
+    return service.list_agenda(db, actor, from_, to, professional_id)
 
 
 @router.get("/availability", response_model=AvailabilityOut)
