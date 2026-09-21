@@ -80,7 +80,11 @@ export function PatientSearch() {
     inputRef.current?.blur()
   }
 
-  // A tela do paciente ainda não existe: abre a lista já filtrada por ele.
+  // Um resultado abre o perfil do paciente; "ver todos" abre a lista já filtrada pelo termo.
+  const goToPatient = (patient: PatientSearchResult) => {
+    navigate(`/app/patients/${patient.id}`)
+    finish()
+  }
   const goToList = (query: string) => {
     navigate(`/app/patients?q=${encodeURIComponent(query)}`)
     finish()
@@ -95,7 +99,7 @@ export function PatientSearch() {
       setActive((current) => (current + step + optionCount) % optionCount)
     } else if (event.key === "Enter") {
       event.preventDefault()
-      if (active >= 0 && active < results.length) goToList(results[active].full_name)
+      if (active >= 0 && active < results.length) goToPatient(results[active])
       else if (trimmed.length >= MIN_SEARCH_LENGTH) goToList(trimmed)
     } else if (event.key === "Escape") {
       if (open) {
@@ -184,7 +188,7 @@ export function PatientSearch() {
                   aria-selected={active === index}
                   // mousedown antes do blur: o campo mantém o foco até o clique ser tratado.
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => goToList(patient.full_name)}
+                  onClick={() => goToPatient(patient)}
                   onMouseMove={() => setActive(index)}
                   className={cn("flex cursor-pointer items-center gap-3 px-3 py-2", active === index && "bg-accent")}
                 >

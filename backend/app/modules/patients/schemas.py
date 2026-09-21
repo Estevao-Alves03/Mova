@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import AwareDatetime, BaseModel, ConfigDict, StringConstraints, field_validator
 
 from app.core.validators import normalize_phone
-from app.modules.schedule.models import ConsultationGoal
+from app.modules.schedule.models import AppointmentStatus, AppointmentType, ConsultationGoal
 from app.modules.schedule.schemas import AppointmentOut
 
 MAX_NOTES_LENGTH = 300
@@ -129,6 +129,55 @@ class PatientListClinical(PatientListBasic):
     """Admin e nutricionista: acrescenta o objetivo informado na 1ª consulta."""
 
     goal: ConsultationGoal | None
+
+
+# ------------------------------------------------------------------ perfil do paciente
+
+class PatientNutritionist(BaseModel):
+    """Responsável pelo atendimento (o CRN já é público para a recepção em `GET /schedule/professionals`)."""
+
+    id: UUID
+    full_name: str
+    crn: str | None
+
+
+class PatientUnit(BaseModel):
+    id: UUID
+    name: str
+
+
+class PatientDetailBasic(BaseModel):
+    """Perfil para a recepção: cadastro, responsável e unidade. Nada de consultas, metas ou dados clínicos."""
+
+    id: UUID
+    full_name: str
+    birth_date: date | None
+    sex: Literal["female", "male"] | None
+    phone: str | None
+    email: str | None
+    created_at: datetime
+    nutritionist: PatientNutritionist | None
+    # O paciente não tem unidade própria: vem da próxima consulta ativa (ou, sem ela, da mais recente).
+    unit: PatientUnit | None
+    situation: PatientSituation
+
+
+class PatientTimelineItem(BaseModel):
+    id: UUID
+    appointment_type: AppointmentType
+    status: AppointmentStatus
+    starts_at: datetime
+
+
+class PatientDetailClinical(PatientDetailBasic):
+    """Admin e nutricionista responsável: acrescenta o objetivo da 1ª consulta e o histórico de consultas."""
+
+    goal: ConsultationGoal | None
+    initial_notes: str | None
+    last_consultation_at: datetime | None
+    next_appointment_at: datetime | None
+    # Consultas não canceladas, da mais antiga para a mais recente.
+    timeline: list[PatientTimelineItem]
 
 
 class PatientSearchItem(BaseModel):

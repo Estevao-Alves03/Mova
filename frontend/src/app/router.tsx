@@ -5,6 +5,7 @@ import { LoginPage } from "@/features/auth/LoginPage"
 import { RequireRole } from "@/features/auth/RequireRole"
 import { RequireAuth } from "@/features/auth/RequireAuth"
 import { DashboardPage } from "@/features/dashboard/DashboardPage"
+import { PatientProfilePage } from "@/features/patients/profile/PatientProfilePage"
 import { PatientsPage } from "@/features/patients/PatientsPage"
 import { SchedulePage } from "@/features/schedule/SchedulePage"
 import { rolesFor, SETTINGS_ROLES, type SettingsCategoryPath } from "@/features/settings/platform/categories"
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
           { path: "dashboard", element: <DashboardPage /> },
           { path: "schedule", element: <SchedulePage /> },
           { path: "patients", element: <PatientsPage /> },
+          { path: "patients/:patientId", element: <PatientProfilePage /> },
           {
             // Guardas só de UX; a autorização real será do backend.
             path: "settings",

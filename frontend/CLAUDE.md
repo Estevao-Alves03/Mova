@@ -51,7 +51,8 @@
 - `mocks/` só para telas cujo backend ainda não existe. Remover o mock ao integrar.
 - Agenda: profissionais, expediente, almoço, durações por tipo e bloqueios vêm da API (`features/schedule/api.ts`). As consultas também vêm da API (`GET /schedule/appointments`). O front nunca decide disponibilidade: a API valida; a recepção recebe bloqueios só como "Indisponível" (sem motivo).
 - Pacientes (`features/patients`): a lista lê `GET /patients` (a API filtra por papel e recorta os campos). Dados clínicos nunca são renderizados para a recepção. Filtros, busca, ordem e página ficam na URL.
-- Busca principal (`layouts/admin/PatientSearch.tsx`): combobox no header (nome, telefone, e-mail) sobre `GET /patients/search`, com debounce; ⌘K/Ctrl+K foca. Enquanto não existir a tela do paciente, escolher um resultado abre a lista filtrada por ele.
+- Perfil do paciente (`features/patients/profile`): lê `GET /patients/{id}`. A tela decide o que renderizar pelo que a API entregou (`isClinical`), não pelo papel: a recepção fica só com o cabeçalho cadastral (sem abas nem cards clínicos). Só a aba "Visão Geral e Metas" existe; as demais aparecem desabilitadas. Metas numéricas, protocolo, aderência e alertas do protótipo NÃO têm modelo e não foram criados.
+- Busca principal (`layouts/admin/PatientSearch.tsx`): combobox no header (nome, telefone, e-mail) sobre `GET /patients/search`, com debounce; ⌘K/Ctrl+K foca. Escolher um resultado abre o perfil do paciente (`/app/patients/:patientId`); "Ver todos os resultados" abre a lista filtrada.
 - Sino (`features/notifications`): consulta `GET /notifications` a cada 30 s (aba visível) e ao voltar para a aba; alertas sonoros/na tela seguem `alertRules.ts` (preferências, horário de silêncio, silêncio clínico). Toasts ficam no canto inferior para não cobrir o sino e a busca do header.
 - Só há três tipos de atendimento (1ª consulta, retorno, avaliação antropométrica). Teleconsulta não é tipo.
 

@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -8,6 +9,8 @@ from app.modules.patients import service
 from app.modules.patients.schemas import (
     PatientCreate,
     PatientCreated,
+    PatientDetailBasic,
+    PatientDetailClinical,
     PatientListBasic,
     PatientListClinical,
     PatientSearchItem,
@@ -44,3 +47,10 @@ def list_patients(actor: Readers, db: DbSession) -> list[PatientListBasic | Pati
 @router.post("", response_model=PatientCreated, status_code=status.HTTP_201_CREATED)
 def create_patient(payload: PatientCreate, actor: Creators, db: DbSession) -> PatientCreated:
     return service.create_patient(db, actor, payload)
+
+
+# Depois de "/search" (que não é um id). response_model=None: a recepção recebe o schema básico,
+# sem consultas, metas nem dados clínicos; o nutricionista só alcança os próprios pacientes (outros = 404).
+@router.get("/{patient_id}", response_model=None)
+def get_patient(patient_id: UUID, actor: Readers, db: DbSession) -> PatientDetailBasic | PatientDetailClinical:
+    return service.get_patient(db, actor, patient_id)

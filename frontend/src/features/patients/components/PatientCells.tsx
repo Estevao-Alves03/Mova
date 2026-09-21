@@ -1,4 +1,5 @@
 import { CalendarCheck, ChevronRight, Clock } from "lucide-react"
+import { Link } from "react-router"
 
 import { getInitials } from "@/lib/user"
 import { cn } from "@/lib/utils"
@@ -24,7 +25,12 @@ export function PatientIdentity({ patient }: { patient: PatientListItem }) {
         {getInitials(patient.full_name)}
       </span>
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-[15px] leading-5 font-semibold">{patient.full_name}</span>
+        <Link
+          to={`/app/patients/${patient.id}`}
+          className="truncate rounded text-[15px] leading-5 font-semibold outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {patient.full_name}
+        </Link>
         <span className="flex items-center gap-1.5 truncate font-data text-xs text-muted-foreground">
           {[
             patient.birth_date ? `${getAge(patient.birth_date)} anos` : null,
@@ -105,8 +111,13 @@ export function NextReturnCell({ patient }: { patient: PatientListItem }) {
           </span>
         )}
       </div>
-      {/* A tela do paciente (prontuário) vem na próxima etapa. */}
-      <ChevronRight className="size-[18px] shrink-0 text-muted-foreground" aria-hidden />
+      <Link
+        to={`/app/patients/${patient.id}`}
+        aria-label={`Abrir o perfil de ${patient.full_name}`}
+        className="shrink-0 rounded text-muted-foreground outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ChevronRight className="size-[18px]" aria-hidden />
+      </Link>
     </div>
   )
 }

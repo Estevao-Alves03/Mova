@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { api } from "@/lib/api"
 
 import type { PatientGoal } from "./new/schema"
-import type { PatientListItem } from "./types"
+import type { PatientDetail, PatientDetailClinical, PatientListItem } from "./types"
 
 export interface CreatePatientPayload {
   full_name: string
@@ -30,6 +30,17 @@ export const patientsKey = ["patients"] as const
 /** Pacientes que o papel pode ver (a API filtra: o nutricionista só recebe os próprios; a recepção, sem dados clínicos). */
 export function usePatients() {
   return useQuery({ queryKey: patientsKey, queryFn: () => api<PatientListItem[]>("/patients") })
+}
+
+/** Perfil de um paciente do escopo do papel (a API responde 404 para qualquer outro, sem distinguir o motivo). */
+export function usePatient(patientId: string | undefined) {
+  return useQuery({
+    queryKey: [...patientsKey, patientId] as const,
+    queryFn: () => api<PatientDetail | PatientDetailClinical>(`/patients/${patientId}`),
+    enabled: !!patientId,
+    // Um 404 não melhora ao tentar de novo.
+    retry: (count, error) => (error as { status?: number }).status !== 404 && count < 2,
+  })
 }
 
 /** Resultado da busca principal: só identificação e contato (nada clínico, para qualquer papel). */
